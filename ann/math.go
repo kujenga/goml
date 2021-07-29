@@ -1,6 +1,9 @@
 package ann
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 type Frame []Vector
 
@@ -51,7 +54,11 @@ type Vector []float32
 
 func DotProduct(a, b Vector) float32 {
 	if len(a) != len(b) {
-		panic("cannot dot product arrays of unequal length")
+		panic(fmt.Errorf(
+			"cannot dot product arrays of unequal length: %d, %d",
+			len(a),
+			len(b),
+		))
 	}
 	var res float32
 	for i := range a {

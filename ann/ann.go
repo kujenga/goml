@@ -83,33 +83,54 @@ func (n *ANN) Train(
 
 			// Backpropagation
 
-			// Iterate over inputs
+			// Iterate over inputs, treating them as a single batch.
 			for i := range inputs {
 				// Iterate over weights for each node "j" in the
 				// current layer.
 				for j, wj := range layer.weights {
+					// ∂C/∂a, deriv Cost wrt. activation
+					// 2 ( a1(L) - y1 )
+					aj := layer.lastActivations[i][j]
+					if next == nil {
+						// Output layer, just
+						// needs to consider
+						// this activation
+						// value.
+						layer.lastE[j] = aj - labels[i][j]
+					} else {
+						// ∑0-j ( 2(aj-yj) (g'(zj)) (wj2) )
+
+						// Iterate over each node in
+						// the next layer and sum up
+						// the costs attributed to this
+						// node.
+						layer.lastE[j] = 0
+						for jn := range next.lastC {
+							// Add the cost from
+							// node jn in the next
+							// layer that came from
+							// node j in this
+							// layer.
+							layer.lastE[j] += next.lastC[jn][j]
+						}
+					}
+					// deriv of the squared error w.r.t. activation
+					dCdA := 2 * layer.lastE[j]
+
+					// ∂a/∂z, deriv activation wrt. input
+					// g'(L)(z) ( z1(L) )
+					dAdZ := sigmoidDerivative(layer.lastZ[i][j])
+
+					// Capture the cost for this edge for
+					// use in the next layer up of
+					// backprop.
+					for k, wjk := range wj {
+						layer.lastC[j][k] = wjk * layer.lastE[j]
+					}
+
 					// Iterate over each weight for node "k" in the
 					// previous layer.
 					for k, wjk := range wj {
-						// ∂C/∂a, deriv Cost wrt. activation
-						// 2 ( a1(L) - y1 )
-						aj := layer.lastActivations[i][j]
-						var dCdA float32
-						if next == nil {
-							// Output layer, just
-							// needs to consider
-							// this activation
-							// value.
-							dCdA = 2 * (aj - labels[i][j])
-						} else {
-							// TODO: add multi-layer support
-							panic("multi-layer unimplemented")
-						}
-
-						// ∂a/∂z, deriv activation wrt. input
-						// g'(L)(z) ( z1(L) )
-						dAdZ := sigmoidDerivative(layer.lastZ[i][j])
-
 						// ∂z/∂w, deriv input wrt. weight
 						// a2(L-1)
 						ak := prev.lastActivations[i][k]
@@ -122,15 +143,13 @@ func (n *ANN) Train(
 						// Update the weight
 						update := n.LearningRate * dCdW
 						layer.weights[j][k] = wjk - update
-
-						// Update the bias with ∂C/∂a * ∂a/∂z
-						layer.biases[j] = layer.biases[j] -
-							n.LearningRate*dCdA*dAdZ
 					}
+
+					// Update the bias with ∂C/∂a * ∂a/∂z
+					layer.biases[j] = layer.biases[j] -
+						n.LearningRate*dCdA*dAdZ
 				}
 			}
-			// TODO: add multi-layer support
-			break
 		}
 	}
 
@@ -193,6 +212,11 @@ type Layer struct {
 	// preserved for use in backpropagation.
 	lastZ           Frame
 	lastActivations Frame
+	// As backpropagation progresses, we record the value of the Cost last
+	// seen so that it can be incorporated as a proxy error for the errors
+	// computed in the output layer.
+	lastE Vector
+	lastC Frame
 }
 
 // Initialize random weights for the layer.
@@ -212,6 +236,12 @@ func (l *Layer) initialize(prev *Layer) {
 	l.biases = make(Vector, l.Width)
 	for i := range l.biases {
 		l.biases[i] = rand.Float32()
+	}
+	// Setup as empty for use in backprop
+	l.lastE = make(Vector, l.Width)
+	l.lastC = make(Frame, l.Width)
+	for i := range l.lastC {
+		l.lastC[i] = make(Vector, l.prev.Width)
 	}
 }
 

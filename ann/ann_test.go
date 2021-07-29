@@ -73,3 +73,33 @@ func TestANNSingleLayer(t *testing.T) {
 	// predict it's own training data.
 	predictionTest(t, &m, trainInputs, trainLabels)
 }
+
+func TestANNMultiLayer(t *testing.T) {
+	var epochs = 1000
+
+	m := ANN{
+		LearningRate: 0.05,
+		Layers: []*Layer{
+			// Input
+			{Name: "input", Width: 3},
+			// Output
+			{Name: "hidden1", Width: 2, InitialBias: 0.5},
+			// Output
+			{Name: "output", Width: 1, InitialBias: 0.5},
+		},
+		Introspect: func(s Step) {
+			t.Logf("%+v", s)
+		},
+	}
+
+	trainInputs := basicInputs
+	trainLabels := basicLabels
+
+	loss, err := m.Train(epochs, trainInputs, trainLabels)
+	require.NoError(t, err, "training error")
+	assert.Less(t, loss, float32(0.1), "loss should be low")
+
+	// While not scientifically useful, we validate that the network can
+	// predict it's own training data.
+	predictionTest(t, &m, trainInputs, trainLabels)
+}
