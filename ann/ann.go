@@ -43,54 +43,44 @@ func (n *ANN) Train(
 	// Training epochs, running against all inputs in a single batch.
 	var loss float32
 	for e := 0; e < epochs; e++ {
-		// Iterate FORWARDS through the network
-		activations := inputs
-		for _, layer := range n.Layers {
-			activations = layer.ForwardProp(activations)
-		}
-		pred := activations
+		preds := make(Frame, len(inputs))
 
-		errors := errorAmount(pred, labels)
-		loss = Loss(pred, labels)
-		if n.Introspect != nil {
-			var errSum float32
-			errors.ForEach(func(v float32) {
-				errSum += v
-			})
-			n.Introspect(Step{
-				Epoch:      e,
-				TotalError: errSum,
-				Loss:       loss,
-			})
-		}
-
-		// Iterate BACKWARDS through the network
-		for i := range n.Layers {
-			l := len(n.Layers) - (i + 1)
-			layer := n.Layers[l]
-
-			var prev *Layer
-			if l == 0 {
-				// If we are at the input layer, nothing to do.
-				continue
-			} else {
-				prev = n.Layers[l-1]
+		// Iterate over inputs to train in SGD fashion
+		// TODO: Add batch/mini-batch options
+		for i, input := range inputs {
+			// Iterate FORWARDS through the network
+			activations := input
+			for _, layer := range n.Layers {
+				activations = layer.ForwardProp(activations)
 			}
-			var next *Layer
-			if l < len(n.Layers)-1 {
-				next = n.Layers[l+1]
-			}
+			preds[i] = activations
 
-			// Backpropagation
+			// Iterate BACKWARDS through the network
+			for step := range n.Layers {
+				l := len(n.Layers) - (step + 1)
+				layer := n.Layers[l]
 
-			// Iterate over inputs, treating them as a single batch.
-			for i := range inputs {
+				if l == 0 {
+					// If we are at the input layer, nothing to do.
+					continue
+				}
+				var next *Layer
+				if l < len(n.Layers)-1 {
+					next = n.Layers[step+1]
+					if next.prev != layer {
+						// coherence check
+						panic("layers not matched")
+					}
+				}
+
+				// Backpropagation
+
 				// Iterate over weights for each node "j" in the
 				// current layer.
 				for j, wj := range layer.weights {
 					// ∂C/∂a, deriv Cost wrt. activation
 					// 2 ( a1(L) - y1 )
-					aj := layer.lastActivations[i][j]
+					aj := layer.lastActivations[j]
 					if next == nil {
 						// Output layer, just
 						// needs to consider
@@ -119,7 +109,7 @@ func (n *ANN) Train(
 
 					// ∂a/∂z, deriv activation wrt. input
 					// g'(L)(z) ( z1(L) )
-					dAdZ := sigmoidDerivative(layer.lastZ[i][j])
+					dAdZ := sigmoidDerivative(layer.lastZ[j])
 
 					// Capture the cost for this edge for
 					// use in the next layer up of
@@ -133,7 +123,7 @@ func (n *ANN) Train(
 					for k, wjk := range wj {
 						// ∂z/∂w, deriv input wrt. weight
 						// a2(L-1)
-						ak := prev.lastActivations[i][k]
+						ak := layer.prev.lastActivations[k]
 						dZdW := ak
 
 						// Total derivative, via chain rule
@@ -151,6 +141,22 @@ func (n *ANN) Train(
 				}
 			}
 		}
+
+		// Calculate errors
+		errors := errorAmount(preds, labels)
+		loss = Loss(preds, labels)
+		if n.Introspect != nil {
+			var errSum float32
+			errors.ForEach(func(v float32) {
+				errSum += v
+			})
+			n.Introspect(Step{
+				Epoch:      e,
+				TotalError: errSum,
+				Loss:       loss,
+			})
+		}
+
 	}
 
 	return loss, nil
@@ -161,12 +167,16 @@ func (n *ANN) Train(
 // representing the predictions of the network.
 func (n *ANN) Predict(inputs Frame) Frame {
 	// Iterate FORWARDS through the network
-	activations := inputs
-	for _, layer := range n.Layers {
-		activations = layer.ForwardProp(activations)
+	preds := make(Frame, len(inputs))
+	for i, input := range inputs {
+		activations := input
+		for _, layer := range n.Layers {
+			activations = layer.ForwardProp(activations)
+		}
+		// Activations from the last layer are our predictions
+		preds[i] = activations
 	}
-	pred := activations
-	return pred
+	return preds
 }
 
 // Costs as the raw error
@@ -210,8 +220,8 @@ type Layer struct {
 	// Every time that input is fed through this layer, the last input
 	// values "z" computed from the weights and the last activation values are
 	// preserved for use in backpropagation.
-	lastZ           Frame
-	lastActivations Frame
+	lastZ           Vector
+	lastActivations Vector
 	// As backpropagation progresses, we record the value of the Cost last
 	// seen so that it can be incorporated as a proxy error for the errors
 	// computed in the output layer.
@@ -246,25 +256,21 @@ func (l *Layer) initialize(prev *Layer) {
 }
 
 // Takes in the values, where "inputs" is the output of the previous layer.
-func (l *Layer) ForwardProp(inputs Frame) Frame {
+func (l *Layer) ForwardProp(input Vector) Vector {
 	// If this is the input layer, there is no feed forward step.
 	if l.prev == nil {
-		l.lastActivations = inputs
-		return inputs
+		l.lastActivations = input
+		return input
 	}
 
-	Z := make(Frame, len(inputs))
-	activations := make(Frame, len(inputs))
+	Z := make(Vector, l.Width)
+	activations := make(Vector, l.Width)
 	// Feed forward each input through this layer.
-	for i, input := range inputs {
-		Z[i] = make(Vector, l.Width)
-		activations[i] = make(Vector, l.Width)
-		for j := range activations[i] {
-			// Find the dot product and apply bias
-			Z[i][j] = DotProduct(input, l.weights[j]) + l.biases[j]
-			// Sigmoid activation function
-			activations[i][j] = sigmoid(Z[i][j])
-		}
+	for i := range activations {
+		// Find the dot product and apply bias
+		Z[i] = DotProduct(input, l.weights[i]) + l.biases[i]
+		// Sigmoid activation function
+		activations[i] = sigmoid(Z[i])
 	}
 	l.lastZ = Z
 	l.lastActivations = activations

@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Example inputs for testing, from:
-// https://www.kdnuggets.com/2019/11/build-artificial-neural-network-scratch-part-1.html
 var (
+	// Example inputs for testing, from:
+	// https://www.kdnuggets.com/2019/11/build-artificial-neural-network-scratch-part-1.html
 	basicInputs = Frame{
 		{0, 1, 0},
 		{0, 0, 1},
@@ -26,6 +26,32 @@ var (
 		{1},
 		{1},
 		{0},
+		{1},
+	}
+
+	// Basic test cases for learning boolean logic
+	boolInputs = Frame{
+		{0, 0},
+		{0, 1},
+		{1, 0},
+		{1, 1},
+	}
+	mustLabels = Frame{
+		{0},
+		{0},
+		{1},
+		{1},
+	}
+	andLabels = Frame{
+		{0},
+		{0},
+		{0},
+		{1},
+	}
+	orLabels = Frame{
+		{0},
+		{1},
+		{1},
 		{1},
 	}
 )
@@ -46,7 +72,7 @@ func predictionTest(t *testing.T, m *ANN, inputs, labels Frame) {
 	}
 }
 
-func TestANNSingleLayer(t *testing.T) {
+func TestANNSingleLayerBasic(t *testing.T) {
 	var epochs = 1000
 
 	m := ANN{
@@ -74,16 +100,67 @@ func TestANNSingleLayer(t *testing.T) {
 	predictionTest(t, &m, trainInputs, trainLabels)
 }
 
-func TestANNMultiLayer(t *testing.T) {
-	var epochs = 1000
+func TestANNMultiLayerBool(t *testing.T) {
+	var epochs = 500
 
 	m := ANN{
-		LearningRate: 0.05,
+		LearningRate: 0.1,
+		Layers: []*Layer{
+			// Input
+			{Name: "input", Width: 2},
+			// Hidden
+			{Name: "hidden1", Width: 3, InitialBias: 0.5},
+			// Output
+			{Name: "output", Width: 1, InitialBias: 0.5},
+		},
+		Introspect: func(s Step) {
+			t.Logf("%+v", s)
+		},
+	}
+
+	for _, tc := range []struct {
+		name   string
+		inputs Frame
+		labels Frame
+	}{
+		{
+			name:   "must",
+			inputs: boolInputs,
+			labels: mustLabels,
+		},
+		{
+			name:   "and",
+			inputs: boolInputs,
+			labels: andLabels,
+		},
+		{
+			name:   "or",
+			inputs: boolInputs,
+			labels: orLabels,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			loss, err := m.Train(epochs, tc.inputs, tc.labels)
+			require.NoError(t, err, "training error")
+			assert.Less(t, loss, float32(0.1), "loss should be low")
+
+			// While not scientifically useful, we validate that
+			// the network can predict it's own training data.
+			predictionTest(t, &m, tc.inputs, tc.labels)
+		})
+	}
+}
+
+func TestANNMultiLayerBasic(t *testing.T) {
+	var epochs = 500
+
+	m := ANN{
+		LearningRate: 0.1,
 		Layers: []*Layer{
 			// Input
 			{Name: "input", Width: 3},
-			// Output
-			{Name: "hidden1", Width: 2, InitialBias: 0.5},
+			// Hidden
+			{Name: "hidden1", Width: 3, InitialBias: 0.5},
 			// Output
 			{Name: "output", Width: 1, InitialBias: 0.5},
 		},
