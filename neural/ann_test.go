@@ -1,4 +1,4 @@
-package ann
+package neural
 
 import (
 	"testing"

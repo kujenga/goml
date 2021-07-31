@@ -1,12 +1,6 @@
-// Package ann provides an implementation of an Artificial Neural Network
+// Package neural provides an implementation of an Artificial Neural Network
 //
-// This work was based on learnings from the following resources:
-// - "Make Your Own Neural Network" by Tariq Rashid
-// - deeplizard series on "Backpropagation explained":
-//   https://www.youtube.com/playlist?list=PLZbbT5o_s2xq7LwI2y8_QtvuXZedL6tQU
-// - "Build an Artificial Neural Network From Scratch" article:
-//   https://www.kdnuggets.com/2019/11/build-artificial-neural-network-scratch-part-1.html
-package ann
+package neural
 
 import (
 	"errors"
@@ -19,6 +13,13 @@ import (
 
 // ANN provides an Artificial Neural Network which can be configured for
 // arbitrarily complex machine learning tasks.
+//
+// This work was based on learnings from the following resources:
+// - "Make Your Own Neural Network" by Tariq Rashid
+// - deeplizard series on "Backpropagation explained":
+//   https://www.youtube.com/playlist?list=PLZbbT5o_s2xq7LwI2y8_QtvuXZedL6tQU
+// - "Build an Artificial Neural Network From Scratch" article:
+//   https://www.kdnuggets.com/2019/11/build-artificial-neural-network-scratch-part-1.html
 type ANN struct {
 	LearningRate float32
 	Layers       []*Layer

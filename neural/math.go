@@ -1,4 +1,4 @@
-package ann
+package neural
 
 import (
 	"github.com/kujenga/goml/lin"
