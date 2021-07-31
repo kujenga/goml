@@ -11,6 +11,7 @@ package ann
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 
 	"github.com/kujenga/goml/lin"
@@ -253,9 +254,10 @@ func (l *Layer) initialize(prev *Layer) {
 	for i := range l.weights {
 		l.weights[i] = make(lin.Vector, l.prev.Width)
 		for j := range l.weights[i] {
-			// TODO: Scale this based on the "connectedness" of the
+			// We scale this based on the "connectedness" of the
 			// node to avoid saturating the gradients in the network.
-			l.weights[i][j] = rand.Float32()
+			weight := rand.NormFloat64() * math.Pow(float64(l.prev.Width), -0.5)
+			l.weights[i][j] = float32(weight)
 		}
 	}
 	l.biases = make(lin.Vector, l.Width)

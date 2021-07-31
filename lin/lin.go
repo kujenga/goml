@@ -78,3 +78,17 @@ func DotProduct(a, b Vector) float32 {
 	}
 	return res
 }
+
+// MaxVal returns the index of the maximum value within the Vector. This is
+// useful with interpreting the output of one-hot encoding models.
+func (v Vector) MaxVal() int {
+	var max float32
+	var imax int
+	for i, val := range v {
+		if val > max {
+			max = val
+			imax = i
+		}
+	}
+	return imax
+}
