@@ -160,6 +160,12 @@ type Layer struct {
 	// Pointer to next layer in the network for use in backprop.
 	next *Layer
 
+	// Activation function, defaults to sigmoid when not specified.
+	ActivationFunction func(float32) float32
+	// Derivative of the activation function, defaults to the derivative of
+	// the default sigmoid function.
+	ActivationFunctionDeriv func(float32) float32
+
 	initialized bool
 	// weights are row x column. each row is a node in the current layer,
 	// each column corresponds with a node from the previous layer.
@@ -185,9 +191,21 @@ func (l *Layer) initialize(nn *ANN, prev *Layer, next *Layer) {
 		// If already initialized or the input layer
 		return
 	}
+
+	// Pointers to other components in the network
 	l.nn = nn
 	l.prev = prev
 	l.next = next
+
+	// Hyperparameters for how the layer behaves.
+	if l.ActivationFunction == nil {
+		l.ActivationFunction = lin.Sigmoid
+	}
+	if l.ActivationFunctionDeriv == nil {
+		l.ActivationFunctionDeriv = lin.SigmoidDerivative
+	}
+
+	// Memory structures for use in the network training and predictions.
 	l.weights = make(lin.Frame, l.Width)
 	for i := range l.weights {
 		l.weights[i] = make(lin.Vector, l.prev.Width)
@@ -208,6 +226,8 @@ func (l *Layer) initialize(nn *ANN, prev *Layer, next *Layer) {
 	for i := range l.lastC {
 		l.lastC[i] = make(lin.Vector, l.prev.Width)
 	}
+
+	l.initialized = true
 }
 
 // ForwardProp takes in the values, where "inputs" is the output of the
@@ -226,7 +246,7 @@ func (l *Layer) ForwardProp(input lin.Vector) lin.Vector {
 		// Find the dot product and apply bias
 		Z[i] = lin.DotProduct(input, l.weights[i]) + l.biases[i]
 		// Sigmoid activation function
-		activations[i] = sigmoid(Z[i])
+		activations[i] = l.ActivationFunction(Z[i])
 	}
 	l.lastZ = Z
 	l.lastActivations = activations
@@ -262,7 +282,7 @@ func (l *Layer) BackProp(label lin.Vector) {
 
 		// ∂a/∂z, deriv activation w.r.t. input
 		// g'(L)(z) ( z1(L) )
-		dAdZ := sigmoidDerivative(l.lastZ[j])
+		dAdZ := l.ActivationFunctionDeriv(l.lastZ[j])
 
 		// Capture the cost for this edge for use in the next layer up
 		// of backprop.
@@ -285,7 +305,8 @@ func (l *Layer) BackProp(label lin.Vector) {
 			l.weights[j][k] = wjk - update
 		}
 
-		// Update the bias with ∂C/∂a * ∂a/∂z
+		// Update the bias along the gradient of the cost w.r.t. inputs.
+		// ∂C/∂z = ∂C/∂a * ∂a/∂z
 		l.biases[j] = l.biases[j] -
 			l.nn.LearningRate*dCdA*dAdZ
 	}

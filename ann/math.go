@@ -1,18 +1,8 @@
 package ann
 
 import (
-	"math"
-
 	"github.com/kujenga/goml/lin"
 )
-
-func sigmoid(x float32) float32 {
-	return 1 / (1 + float32(math.Exp(-float64(x))))
-}
-
-func sigmoidDerivative(x float32) float32 {
-	return sigmoid(x) * (1 - sigmoid(x))
-}
 
 // Loss function, mean squared error.
 //
