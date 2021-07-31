@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+
+	"github.com/kujenga/goml/lin"
 )
 
 type ANN struct {
@@ -25,8 +27,8 @@ type Step struct {
 // completes.
 func (n *ANN) Train(
 	epochs int,
-	inputs Frame,
-	labels Frame,
+	inputs lin.Frame,
+	labels lin.Frame,
 ) (float32, error) {
 	// Correctness checks
 	if err := n.check(inputs, labels); err != nil {
@@ -43,7 +45,7 @@ func (n *ANN) Train(
 	// Training epochs, running against all inputs in a single batch.
 	var loss float32
 	for e := 0; e < epochs; e++ {
-		preds := make(Frame, len(inputs))
+		preds := make(lin.Frame, len(inputs))
 
 		// Iterate over inputs to train in SGD fashion
 		// TODO: Add batch/mini-batch options
@@ -165,9 +167,9 @@ func (n *ANN) Train(
 // Predict takes in a set of input rows with the width of the input layer, and
 // returns a frame of prediction rows with the width of the output layer,
 // representing the predictions of the network.
-func (n *ANN) Predict(inputs Frame) Frame {
+func (n *ANN) Predict(inputs lin.Frame) lin.Frame {
 	// Iterate FORWARDS through the network
-	preds := make(Frame, len(inputs))
+	preds := make(lin.Frame, len(inputs))
 	for i, input := range inputs {
 		activations := input
 		for _, layer := range n.Layers {
@@ -180,13 +182,13 @@ func (n *ANN) Predict(inputs Frame) Frame {
 }
 
 // Costs as the raw error
-func errorAmount(outputs, labels Frame) Frame {
+func errorAmount(outputs, labels lin.Frame) lin.Frame {
 	return outputs.Pairwise(labels, func(o, l float32) float32 {
 		return o - l
 	})
 }
 
-func (n *ANN) check(inputs Frame, outputs Frame) error {
+func (n *ANN) check(inputs lin.Frame, outputs lin.Frame) error {
 	if len(n.Layers) == 0 {
 		return errors.New("ann must have at least one layer")
 	}
@@ -213,20 +215,20 @@ type Layer struct {
 	initialized bool
 	// weights are row x column. each row is a node in the current layer,
 	// each column corresponds with a node from the previous layer.
-	weights Frame
+	weights lin.Frame
 	// each node has a bias which can be changed over time.
-	biases Vector
+	biases lin.Vector
 
 	// Every time that input is fed through this layer, the last input
 	// values "z" computed from the weights and the last activation values are
 	// preserved for use in backpropagation.
-	lastZ           Vector
-	lastActivations Vector
+	lastZ           lin.Vector
+	lastActivations lin.Vector
 	// As backpropagation progresses, we record the value of the Cost last
 	// seen so that it can be incorporated as a proxy error for the errors
 	// computed in the output layer.
-	lastE Vector
-	lastC Frame
+	lastE lin.Vector
+	lastC lin.Frame
 }
 
 // Initialize random weights for the layer.
@@ -236,39 +238,41 @@ func (l *Layer) initialize(prev *Layer) {
 		return
 	}
 	l.prev = prev
-	l.weights = make(Frame, l.Width)
+	l.weights = make(lin.Frame, l.Width)
 	for i := range l.weights {
-		l.weights[i] = make(Vector, l.prev.Width)
+		l.weights[i] = make(lin.Vector, l.prev.Width)
 		for j := range l.weights[i] {
+			// TODO: Scale this based on the "connectedness" of the
+			// node to avoid saturating the gradients in the network.
 			l.weights[i][j] = rand.Float32()
 		}
 	}
-	l.biases = make(Vector, l.Width)
+	l.biases = make(lin.Vector, l.Width)
 	for i := range l.biases {
 		l.biases[i] = rand.Float32()
 	}
 	// Setup as empty for use in backprop
-	l.lastE = make(Vector, l.Width)
-	l.lastC = make(Frame, l.Width)
+	l.lastE = make(lin.Vector, l.Width)
+	l.lastC = make(lin.Frame, l.Width)
 	for i := range l.lastC {
-		l.lastC[i] = make(Vector, l.prev.Width)
+		l.lastC[i] = make(lin.Vector, l.prev.Width)
 	}
 }
 
 // Takes in the values, where "inputs" is the output of the previous layer.
-func (l *Layer) ForwardProp(input Vector) Vector {
+func (l *Layer) ForwardProp(input lin.Vector) lin.Vector {
 	// If this is the input layer, there is no feed forward step.
 	if l.prev == nil {
 		l.lastActivations = input
 		return input
 	}
 
-	Z := make(Vector, l.Width)
-	activations := make(Vector, l.Width)
+	Z := make(lin.Vector, l.Width)
+	activations := make(lin.Vector, l.Width)
 	// Feed forward each input through this layer.
 	for i := range activations {
 		// Find the dot product and apply bias
-		Z[i] = DotProduct(input, l.weights[i]) + l.biases[i]
+		Z[i] = lin.DotProduct(input, l.weights[i]) + l.biases[i]
 		// Sigmoid activation function
 		activations[i] = sigmoid(Z[i])
 	}

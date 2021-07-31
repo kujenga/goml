@@ -3,6 +3,7 @@ package ann
 import (
 	"testing"
 
+	"github.com/kujenga/goml/lin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -10,7 +11,7 @@ import (
 var (
 	// Example inputs for testing, from:
 	// https://www.kdnuggets.com/2019/11/build-artificial-neural-network-scratch-part-1.html
-	basicInputs = Frame{
+	basicInputs = lin.Frame{
 		{0, 1, 0},
 		{0, 0, 1},
 		{1, 0, 0},
@@ -19,7 +20,7 @@ var (
 		{0, 1, 1},
 		{0, 1, 0},
 	}
-	basicLabels = Frame{
+	basicLabels = lin.Frame{
 		{1},
 		{0},
 		{0},
@@ -30,25 +31,25 @@ var (
 	}
 
 	// Basic test cases for learning boolean logic
-	boolInputs = Frame{
+	boolInputs = lin.Frame{
 		{0, 0},
 		{0, 1},
 		{1, 0},
 		{1, 1},
 	}
-	mustLabels = Frame{
+	mustLabels = lin.Frame{
 		{0},
 		{0},
 		{1},
 		{1},
 	}
-	andLabels = Frame{
+	andLabels = lin.Frame{
 		{0},
 		{0},
 		{0},
 		{1},
 	}
-	orLabels = Frame{
+	orLabels = lin.Frame{
 		{0},
 		{1},
 		{1},
@@ -56,7 +57,7 @@ var (
 	}
 )
 
-func predictionTest(t *testing.T, m *ANN, inputs, labels Frame) {
+func predictionTest(t *testing.T, m *ANN, inputs, labels lin.Frame) {
 	for i, prediction := range m.Predict(inputs) {
 		t.Logf("input: %+v, prediction: %+v, label: %+v",
 			inputs[i], prediction, labels[i])
@@ -120,8 +121,8 @@ func TestANNMultiLayerBool(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		inputs Frame
-		labels Frame
+		inputs lin.Frame
+		labels lin.Frame
 	}{
 		{
 			name:   "must",
