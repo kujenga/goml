@@ -105,7 +105,7 @@ func TestANNSingleLayerBasic(t *testing.T) {
 			// Input
 			{Name: "input", Width: 3},
 			// Output
-			{Name: "output", Width: 1, InitialBias: 0.5},
+			{Name: "output", Width: 1},
 		},
 		Introspect: func(s Step) {
 			t.Logf("%+v", s)
@@ -133,9 +133,9 @@ func TestANNMultiLayerBool(t *testing.T) {
 			// Input
 			{Name: "input", Width: 2},
 			// Hidden
-			{Name: "hidden1", Width: 3, InitialBias: 0.5},
+			{Name: "hidden1", Width: 3},
 			// Output
-			{Name: "output", Width: 1, InitialBias: 0.5},
+			{Name: "output", Width: 1},
 		},
 		Introspect: func(s Step) {
 			t.Logf("%+v", s)
@@ -184,9 +184,9 @@ func TestANNMultiLayerBasic(t *testing.T) {
 			// Input
 			{Name: "input", Width: 3},
 			// Hidden
-			{Name: "hidden1", Width: 3, InitialBias: 0.5},
+			{Name: "hidden1", Width: 3},
 			// Output
-			{Name: "output", Width: 1, InitialBias: 0.5},
+			{Name: "output", Width: 1},
 		},
 		Introspect: func(s Step) {
 			t.Logf("%+v", s)
