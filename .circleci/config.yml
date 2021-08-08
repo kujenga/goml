@@ -23,7 +23,17 @@ jobs:
       - run:
           name: Run tests
           command: |
+            # Make test and artifact directories
             mkdir -p /tmp/test-reports
-            gotestsum --junitfile /tmp/test-reports/unit-tests.xml
+            mkdir -p /tmp/test-artifacts
+            # Run tests
+            gotestsum --junitfile /tmp/test-reports/unit-tests.xml -- \
+              -coverprofile=/tmp/test-artifacts/coverage.out ./...
+            # Generate coverage report
+            go tool cover \
+              -html=/tmp/test-artifacts/coverage.out \
+              -o=/tmp/test-artifacts/coverage.html
       - store_test_results:
           path: /tmp/test-reports
+      - store_artifacts:
+          path: /tmp/test-artifacts
