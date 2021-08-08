@@ -11,15 +11,15 @@ import (
 	"github.com/kujenga/goml/lin"
 )
 
-// MLP provides a Multi-Layer Perceptrin which can be configured for
-// arbitrarily complex machine learning tasks within that paradigm.
-//
 // This work was based on learnings from the following resources:
 // - "Make Your Own Neural Network" by Tariq Rashid
 // - deeplizard series on "Backpropagation explained":
 //   https://www.youtube.com/playlist?list=PLZbbT5o_s2xq7LwI2y8_QtvuXZedL6tQU
 // - "Build an Artificial Neural Network From Scratch" article:
 //   https://www.kdnuggets.com/2019/11/build-artificial-neural-network-scratch-part-1.html
+
+// MLP provides a Multi-Layer Perceptrin which can be configured for
+// arbitrarily complex machine learning tasks within that paradigm.
 type MLP struct {
 	// LearningRate is the rate at which learning occurs in back
 	// propagation, relative to the error calculations.
@@ -156,11 +156,14 @@ func (n *MLP) check(inputs lin.Frame, outputs lin.Frame) error {
 	return nil
 }
 
-// Layer defines a layer in the neural network. Things a layer can do:
-// - Transform input elements in-place
-// -
+// Layer defines a layer in the neural network. These are presently basic
+// feed-forward layers that also provide capabilities to facilitate
+// backpropagatin within the MLP structure.
 type Layer struct {
-	Name  string
+	// Name is a name for the layer, for debugging and documentation
+	// purposes.
+	Name string
+	// Width defines the width of this layer, the number of neurons.
 	Width int
 
 	// Pointer to the neural network that this layer is being used within.

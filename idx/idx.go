@@ -1,4 +1,4 @@
-// Package idx implements the idx data format
+// Package idx implements the idx data format.
 //
 // For a description of this data format, see the documentation here:
 // http://yann.lecun.com/exdb/mnist/
