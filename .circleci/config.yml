@@ -40,4 +40,6 @@ jobs:
       - run:
           # ref: https://github.com/codecov/example-go/blob/master/.circleci/config.yml
           name: Upload coverage to Codecov
-          command: bash <(curl -s https://codecov.io/bash)
+          command: |
+            bash <(curl -s https://codecov.io/bash) \
+              -f /tmp/test-artifacts/coverage.txt
