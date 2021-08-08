@@ -28,12 +28,16 @@ jobs:
             mkdir -p /tmp/test-artifacts
             # Run tests
             gotestsum --junitfile /tmp/test-reports/unit-tests.xml -- \
-              -coverprofile=/tmp/test-artifacts/coverage.out ./...
+              -coverprofile=/tmp/test-artifacts/coverage.txt ./...
             # Generate coverage report
             go tool cover \
-              -html=/tmp/test-artifacts/coverage.out \
+              -html=/tmp/test-artifacts/coverage.txt \
               -o=/tmp/test-artifacts/coverage.html
       - store_test_results:
           path: /tmp/test-reports
       - store_artifacts:
           path: /tmp/test-artifacts
+      - run:
+          # ref: https://github.com/codecov/example-go/blob/master/.circleci/config.yml
+          name: Upload coverage to Codecov
+          command: bash <(curl -s https://codecov.io/bash)
