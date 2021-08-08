@@ -239,3 +239,29 @@ func TestMLPMultiLayerMNIST(t *testing.T) {
 		0.9,
 	)
 }
+
+func BenchmarkMLPMultiLayerBasic(b *testing.B) {
+	m := MLP{
+		LearningRate: 0.1,
+		Layers: []*Layer{
+			// Input
+			{Name: "input", Width: 3},
+			// Hidden
+			{Name: "hidden1", Width: 3},
+			// Output
+			{Name: "output", Width: 1},
+		},
+	}
+
+	m.Initialize()
+
+	trainInputs := basicInputs
+	trainLabels := basicLabels
+
+	const epochs = 10
+
+	for i := 0; i < b.N; i++ {
+		_, err := m.Train(epochs, trainInputs, trainLabels)
+		require.NoError(b, err, "training error")
+	}
+}

@@ -1,2 +1,8 @@
 # Created by Makefile
 testdata/
+
+# Golang CPU profiles, etc.
+*.out
+*.test
+*.svg
+*.pdf
