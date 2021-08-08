@@ -18,6 +18,9 @@ jobs:
           paths:
             - "/go/pkg/mod"
       - run:
+          name: Setup test files
+          command: make
+      - run:
           name: Run tests
           command: |
             mkdir -p /tmp/test-reports
