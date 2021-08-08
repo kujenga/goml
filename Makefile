@@ -14,7 +14,7 @@ mnist: $(MNIST)/train-labels-idx1-ubyte.gz
 
 $(MNIST)/train-labels-idx1-ubyte.gz: \
 		$(PWD)/testdata/mnist/mnist.zip
-	unzip -f -d $(dir $@) $<
+	unzip -u -d $(dir $@) $<
 
 $(MNIST)/mnist.zip:
 	mkdir -p $(dir $@)
