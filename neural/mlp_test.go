@@ -58,7 +58,7 @@ var (
 	}
 )
 
-func predictionTestBool(t *testing.T, m *ANN, inputs, labels lin.Frame) {
+func predictionTestBool(t *testing.T, m *MLP, inputs, labels lin.Frame) {
 	for i, prediction := range m.Predict(inputs) {
 		t.Logf("input: %+v, prediction: %+v, label: %+v",
 			inputs[i], prediction, labels[i])
@@ -74,7 +74,7 @@ func predictionTestBool(t *testing.T, m *ANN, inputs, labels lin.Frame) {
 	}
 }
 
-func predictionTestOneHot(t *testing.T, m *ANN, inputs, labels lin.Frame, threshold float32) {
+func predictionTestOneHot(t *testing.T, m *MLP, inputs, labels lin.Frame, threshold float32) {
 	results := make([]bool, len(labels))
 	for i, predictionOH := range m.Predict(inputs) {
 		prediction := predictionOH.MaxVal()
@@ -96,10 +96,10 @@ func predictionTestOneHot(t *testing.T, m *ANN, inputs, labels lin.Frame, thresh
 		"should be above desired performance threshold")
 }
 
-func TestANNSingleLayerBasic(t *testing.T) {
+func TestMLPSingleLayerBasic(t *testing.T) {
 	var epochs = 1000
 
-	m := ANN{
+	m := MLP{
 		LearningRate: 0.05,
 		Layers: []*Layer{
 			// Input
@@ -124,10 +124,10 @@ func TestANNSingleLayerBasic(t *testing.T) {
 	predictionTestBool(t, &m, trainInputs, trainLabels)
 }
 
-func TestANNMultiLayerBool(t *testing.T) {
+func TestMLPMultiLayerBool(t *testing.T) {
 	var epochs = 500
 
-	m := ANN{
+	m := MLP{
 		LearningRate: 0.1,
 		Layers: []*Layer{
 			// Input
@@ -175,10 +175,10 @@ func TestANNMultiLayerBool(t *testing.T) {
 	}
 }
 
-func TestANNMultiLayerBasic(t *testing.T) {
+func TestMLPMultiLayerBasic(t *testing.T) {
 	var epochs = 300
 
-	m := ANN{
+	m := MLP{
 		LearningRate: 0.1,
 		Layers: []*Layer{
 			// Input
@@ -205,7 +205,7 @@ func TestANNMultiLayerBasic(t *testing.T) {
 	predictionTestBool(t, &m, trainInputs, trainLabels)
 }
 
-func TestANNMultiLayerMNIST(t *testing.T) {
+func TestMLPMultiLayerMNIST(t *testing.T) {
 	dataset, err := mnist.Read("../testdata/mnist")
 	require.NoError(t, err)
 
@@ -213,7 +213,7 @@ func TestANNMultiLayerMNIST(t *testing.T) {
 
 	const epochs = 5
 
-	m := ANN{
+	m := MLP{
 		LearningRate: 0.1,
 		Layers: []*Layer{
 			// Input
