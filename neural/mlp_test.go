@@ -38,6 +38,7 @@ var (
 		{1, 0},
 		{1, 1},
 	}
+	// Basic labels for various boolean functions
 	mustLabels = lin.Frame{
 		{0},
 		{0},
@@ -56,7 +57,57 @@ var (
 		{1},
 		{1},
 	}
+	xorLabels = lin.Frame{
+		{0},
+		{1},
+		{0},
+		{1},
+	}
+	nandLabels = lin.Frame{
+		{1},
+		{1},
+		{1},
+		{0},
+	}
 )
+
+type testCase struct {
+	name   string
+	inputs lin.Frame
+	labels lin.Frame
+}
+
+var boolTestCases = []testCase{
+	{
+		name:   "must",
+		inputs: boolInputs,
+		labels: mustLabels,
+	},
+	{
+		name:   "and",
+		inputs: boolInputs,
+		labels: andLabels,
+	},
+	{
+		name:   "or",
+		inputs: boolInputs,
+		labels: orLabels,
+	},
+	{
+		name:   "xor",
+		inputs: boolInputs,
+		labels: xorLabels,
+	},
+	// NOTE: Will not converge with neural networks currently in tests
+	// TODO: Add references/explanation for why this is.
+	// {
+	//         name:   "nand",
+	//         inputs: boolInputs,
+	//         labels: nandLabels,
+	// },
+}
+
+// Helpers
 
 func predictionTestBool(t *testing.T, m *MLP, inputs, labels lin.Frame) {
 	for i, prediction := range m.Predict(inputs) {
@@ -96,6 +147,37 @@ func predictionTestOneHot(t *testing.T, m *MLP, inputs, labels lin.Frame, thresh
 		"should be above desired performance threshold")
 }
 
+// Test cases
+
+func TestMLPSingleLayerBool(t *testing.T) {
+	var epochs = 100
+
+	m := MLP{
+		LearningRate: 0.1,
+		Layers: []*Layer{
+			// Input
+			{Name: "input", Width: 2},
+			// Output
+			{Name: "output", Width: 1},
+		},
+		Introspect: func(s Step) {
+			t.Logf("%+v", s)
+		},
+	}
+
+	for _, tc := range boolTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			loss, err := m.Train(epochs, tc.inputs, tc.labels)
+			require.NoError(t, err, "training error")
+			assert.Less(t, loss, float32(0.1), "loss should be low")
+
+			// While not scientifically useful, we validate that
+			// the network can predict it's own training data.
+			predictionTestBool(t, &m, tc.inputs, tc.labels)
+		})
+	}
+}
+
 func TestMLPSingleLayerBasic(t *testing.T) {
 	var epochs = 1000
 
@@ -125,7 +207,7 @@ func TestMLPSingleLayerBasic(t *testing.T) {
 }
 
 func TestMLPMultiLayerBool(t *testing.T) {
-	var epochs = 500
+	var epochs = 200
 
 	m := MLP{
 		LearningRate: 0.1,
@@ -142,27 +224,7 @@ func TestMLPMultiLayerBool(t *testing.T) {
 		},
 	}
 
-	for _, tc := range []struct {
-		name   string
-		inputs lin.Frame
-		labels lin.Frame
-	}{
-		{
-			name:   "must",
-			inputs: boolInputs,
-			labels: mustLabels,
-		},
-		{
-			name:   "and",
-			inputs: boolInputs,
-			labels: andLabels,
-		},
-		{
-			name:   "or",
-			inputs: boolInputs,
-			labels: orLabels,
-		},
-	} {
+	for _, tc := range boolTestCases {
 		t.Run(tc.name, func(t *testing.T) {
 			loss, err := m.Train(epochs, tc.inputs, tc.labels)
 			require.NoError(t, err, "training error")
