@@ -3,6 +3,7 @@ package lin
 
 import (
 	"fmt"
+	"math"
 )
 
 // Frame is a 2D metrix for use in linear algebra.
@@ -82,9 +83,10 @@ func DotProduct(a, b Vector) float32 {
 // MaxVal returns the index of the maximum value within the Vector. This is
 // useful with interpreting the output of one-hot encoding models.
 func (v Vector) MaxVal() int {
-	var max float32
+	var max float32 = -math.MaxFloat32
 	var imax int
 	for i, val := range v {
+		fmt.Println(v, val)
 		if val > max {
 			max = val
 			imax = i
