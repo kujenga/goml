@@ -21,15 +21,18 @@ jobs:
           name: Setup test files
           command: make
       - run:
-          name: Run tests
+          name: Make test and artifact directories
           command: |
-            # Make test and artifact directories
             mkdir -p /tmp/test-reports
             mkdir -p /tmp/test-artifacts
-            # Run tests
+      - run:
+          name: Run tests
+          command: |
             gotestsum --junitfile /tmp/test-reports/unit-tests.xml -- \
               -coverprofile=/tmp/test-artifacts/coverage.txt ./...
-            # Generate coverage report
+      - run:
+          name: Generate coverage report
+          command: |
             go tool cover \
               -html=/tmp/test-artifacts/coverage.txt \
               -o=/tmp/test-artifacts/coverage.html
