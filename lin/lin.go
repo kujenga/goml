@@ -86,7 +86,6 @@ func (v Vector) MaxVal() int {
 	var max float32 = -math.MaxFloat32
 	var imax int
 	for i, val := range v {
-		fmt.Println(v, val)
 		if val > max {
 			max = val
 			imax = i
