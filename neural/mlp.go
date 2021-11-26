@@ -190,11 +190,11 @@ type Layer struct {
 	// preserved for use in backpropagation.
 	lastZ           lin.Vector
 	lastActivations lin.Vector
-	// As backpropagation progresses, we record the value of the Cost last
+	// As backpropagation progresses, we record the value of the Loss last
 	// seen so that it can be incorporated as a proxy error for the errors
 	// computed in the output layer.
 	lastE lin.Vector
-	lastC lin.Frame
+	lastL lin.Frame
 }
 
 // Initialize random weights for the layer.
@@ -234,9 +234,9 @@ func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 	}
 	// Setup as empty for use in backprop
 	l.lastE = make(lin.Vector, l.Width)
-	l.lastC = make(lin.Frame, l.Width)
-	for i := range l.lastC {
-		l.lastC[i] = make(lin.Vector, l.prev.Width)
+	l.lastL = make(lin.Frame, l.Width)
+	for i := range l.lastL {
+		l.lastL[i] = make(lin.Vector, l.prev.Width)
 	}
 
 	l.initialized = true
@@ -271,35 +271,34 @@ func (l *Layer) BackProp(label lin.Vector) {
 	// Iterate over weights for each node "j" in the
 	// current layer.
 	for j, wj := range l.weights {
-		// ∂C/∂a, deriv Cost w.r.t. activation 2 ( a1(L) - y1 )
+		// ∂L/∂a, deriv Loss w.r.t. activation: 2 ( a1(L) - y1 )
 		aj := l.lastActivations[j]
-		if l.next == nil {
-			// Output layer, just needs to consider this activation
-			// value.
+		if l.next == nil { // Output layer
+			// Just needs to consider this activation value.
 			l.lastE[j] = aj - label[j]
 		} else {
 			// ∑0-j ( 2(aj-yj) (g'(zj)) (wj2) )
 
 			// Iterate over each node in the next layer and sum up
-			// the costs attributed to this node.
+			// the losses attributed to this node.
 			l.lastE[j] = 0
-			for jn := range l.next.lastC {
-				// Add the cost from node jn in the next layer
+			for jn := range l.next.lastL {
+				// Add the loss from node jn in the next layer
 				// that came from node j in this layer.
-				l.lastE[j] += l.next.lastC[jn][j]
+				l.lastE[j] += l.next.lastL[jn][j]
 			}
 		}
 		// deriv of the squared error w.r.t. activation
-		dCdA := 2 * l.lastE[j]
+		dLdA := 2 * l.lastE[j]
 
 		// ∂a/∂z, deriv activation w.r.t. input
 		// g'(L)(z) ( z1(L) )
 		dAdZ := l.ActivationFunctionDeriv(l.lastZ[j])
 
-		// Capture the cost for this edge for use in the next layer up
+		// Capture the loss for this edge for use in the next layer up
 		// of backprop.
 		for k, wjk := range wj {
-			l.lastC[j][k] = wjk * l.lastE[j]
+			l.lastL[j][k] = wjk * l.lastE[j]
 		}
 
 		// Iterate over each weight for node "k" in the previous layer.
@@ -308,18 +307,18 @@ func (l *Layer) BackProp(label lin.Vector) {
 			ak := l.prev.lastActivations[k]
 			dZdW := ak
 
-			// Total derivative, via chain rule ∂C/∂w,
-			// deriv cost w.r.t. weight
-			dCdW := dCdA * dAdZ * dZdW
+			// Total derivative, via chain rule ∂L/∂w,
+			// deriv loss w.r.t. weight
+			dLdW := dLdA * dAdZ * dZdW
 
 			// Update the weight
-			update := l.nn.LearningRate * dCdW
+			update := l.nn.LearningRate * dLdW
 			l.weights[j][k] = wjk - update
 		}
 
-		// Update the bias along the gradient of the cost w.r.t. inputs.
-		// ∂C/∂z = ∂C/∂a * ∂a/∂z
+		// Update the bias along the gradient of the loss w.r.t. inputs.
+		// ∂L/∂z = ∂L/∂a * ∂a/∂z
 		l.biases[j] = l.biases[j] -
-			l.nn.LearningRate*dCdA*dAdZ
+			l.nn.LearningRate*dLdA*dAdZ
 	}
 }
