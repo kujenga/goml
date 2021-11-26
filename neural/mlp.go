@@ -18,18 +18,20 @@ import (
 // - "Build an Artificial Neural Network From Scratch" article:
 //   https://www.kdnuggets.com/2019/11/build-artificial-neural-network-scratch-part-1.html
 
-// MLP provides a Multi-Layer Perceptrin which can be configured for
-// arbitrarily complex machine learning tasks within that paradigm.
+// MLP provides a Multi-Layer Perceptron which can be configured for
+// any network architecture within that paradigm.
 type MLP struct {
-	// LearningRate is the rate at which learning occurs in back
-	// propagation, relative to the error calculations.
-	LearningRate float32
 	// Layers is a list of layers in the network, where the first is the
 	// input and last is the output, with inner layers acting as hidden
 	// layers.
 	//
 	// These must not be modified after initialization/training.
 	Layers []*Layer
+
+	// LearningRate is the rate at which learning occurs in back
+	// propagation, relative to the error calculations.
+	LearningRate float32
+
 	// Introspect provides a way for the caller of this network to
 	// check the status of network learning over time and witness
 	// convergence (or lack thereof).
@@ -69,35 +71,30 @@ func (n *MLP) Initialize() {
 // using backpropagation to adjust internal weights to minimize loss, over the
 // specified number of epochs. The final loss value is returned after training
 // completes.
-func (n *MLP) Train(
-	epochs int,
-	inputs lin.Frame,
-	labels lin.Frame,
-) (float32, error) {
-	// Correctness checks
+func (n *MLP) Train(epochs int, inputs, labels lin.Frame) (float32, error) {
+	// Validate that the inputs match the network configuration.
 	if err := n.check(inputs, labels); err != nil {
 		return 0, err
 	}
 
-	// Initialize layers
+	// Initialize all layers within the network.
 	n.Initialize()
 
-	// Training epochs, running against all inputs in a single batch.
+	// Run the training process for the specified number of epochs.
 	var loss float32
 	for e := 0; e < epochs; e++ {
-		preds := make(lin.Frame, len(inputs))
+		predictions := make(lin.Frame, len(inputs))
 
-		// Iterate over inputs to train in SGD fashion
-		// TODO: Add batch/mini-batch options
+		// Iterate over each inputs to train in SGD fashion.
 		for i, input := range inputs {
-			// Iterate FORWARDS through the network
+			// Iterate FORWARDS through the network.
 			activations := input
 			for _, layer := range n.Layers {
 				activations = layer.ForwardProp(activations)
 			}
-			preds[i] = activations
+			predictions[i] = activations
 
-			// Iterate BACKWARDS through the network
+			// Iterate BACKWARDS through the network.
 			for step := range n.Layers {
 				l := len(n.Layers) - (step + 1)
 				layer := n.Layers[l]
@@ -112,7 +109,7 @@ func (n *MLP) Train(
 		}
 
 		// Calculate loss
-		loss = Loss(preds, labels)
+		loss = Loss(predictions, labels)
 		if n.Introspect != nil {
 			n.Introspect(Step{
 				Epoch: e,
@@ -160,11 +157,18 @@ func (n *MLP) check(inputs lin.Frame, outputs lin.Frame) error {
 // feed-forward layers that also provide capabilities to facilitate
 // backpropagatin within the MLP structure.
 type Layer struct {
-	// Name is a name for the layer, for debugging and documentation
-	// purposes.
+	// Name provides a human displayable name for the layer, for debugging
+	// and documentation purposes.
 	Name string
-	// Width defines the width of this layer, the number of neurons.
+	// Width defines the number of neurons in this layer.
 	Width int
+	// Activation function for transforming values passed out of this
+	// layer. Defaults to sigmoid when not specified.
+	ActivationFunction func(float32) float32
+	// Derivative of the activation function, needed for backpropagation.
+	// Must match the value of the ActivationFunction variable. Defaults to
+	// the derivative of the default sigmoid function.
+	ActivationFunctionDeriv func(float32) float32
 
 	// Pointer to the neural network that this layer is being used within.
 	nn *MLP
@@ -173,12 +177,6 @@ type Layer struct {
 	prev *Layer
 	// Pointer to next layer in the network for use in backprop.
 	next *Layer
-
-	// Activation function, defaults to sigmoid when not specified.
-	ActivationFunction func(float32) float32
-	// Derivative of the activation function, defaults to the derivative of
-	// the default sigmoid function.
-	ActivationFunctionDeriv func(float32) float32
 
 	initialized bool
 	// weights are row x column. each row is a node in the current layer,
@@ -192,11 +190,11 @@ type Layer struct {
 	// preserved for use in backpropagation.
 	lastZ           lin.Vector
 	lastActivations lin.Vector
-	// As backpropagation progresses, we record the value of the Cost last
+	// As backpropagation progresses, we record the value of the Loss last
 	// seen so that it can be incorporated as a proxy error for the errors
 	// computed in the output layer.
 	lastE lin.Vector
-	lastC lin.Frame
+	lastL lin.Frame
 }
 
 // Initialize random weights for the layer.
@@ -236,9 +234,9 @@ func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 	}
 	// Setup as empty for use in backprop
 	l.lastE = make(lin.Vector, l.Width)
-	l.lastC = make(lin.Frame, l.Width)
-	for i := range l.lastC {
-		l.lastC[i] = make(lin.Vector, l.prev.Width)
+	l.lastL = make(lin.Frame, l.Width)
+	for i := range l.lastL {
+		l.lastL[i] = make(lin.Vector, l.prev.Width)
 	}
 
 	l.initialized = true
@@ -273,35 +271,34 @@ func (l *Layer) BackProp(label lin.Vector) {
 	// Iterate over weights for each node "j" in the
 	// current layer.
 	for j, wj := range l.weights {
-		// ∂C/∂a, deriv Cost w.r.t. activation 2 ( a1(L) - y1 )
+		// ∂L/∂a, deriv Loss w.r.t. activation: 2 ( a1(L) - y1 )
 		aj := l.lastActivations[j]
-		if l.next == nil {
-			// Output layer, just needs to consider this activation
-			// value.
+		if l.next == nil { // Output layer
+			// Just needs to consider this activation value.
 			l.lastE[j] = aj - label[j]
 		} else {
 			// ∑0-j ( 2(aj-yj) (g'(zj)) (wj2) )
 
 			// Iterate over each node in the next layer and sum up
-			// the costs attributed to this node.
+			// the losses attributed to this node.
 			l.lastE[j] = 0
-			for jn := range l.next.lastC {
-				// Add the cost from node jn in the next layer
+			for jn := range l.next.lastL {
+				// Add the loss from node jn in the next layer
 				// that came from node j in this layer.
-				l.lastE[j] += l.next.lastC[jn][j]
+				l.lastE[j] += l.next.lastL[jn][j]
 			}
 		}
 		// deriv of the squared error w.r.t. activation
-		dCdA := 2 * l.lastE[j]
+		dLdA := 2 * l.lastE[j]
 
 		// ∂a/∂z, deriv activation w.r.t. input
 		// g'(L)(z) ( z1(L) )
 		dAdZ := l.ActivationFunctionDeriv(l.lastZ[j])
 
-		// Capture the cost for this edge for use in the next layer up
+		// Capture the loss for this edge for use in the next layer up
 		// of backprop.
 		for k, wjk := range wj {
-			l.lastC[j][k] = wjk * l.lastE[j]
+			l.lastL[j][k] = wjk * l.lastE[j]
 		}
 
 		// Iterate over each weight for node "k" in the previous layer.
@@ -310,18 +307,18 @@ func (l *Layer) BackProp(label lin.Vector) {
 			ak := l.prev.lastActivations[k]
 			dZdW := ak
 
-			// Total derivative, via chain rule ∂C/∂w,
-			// deriv cost w.r.t. weight
-			dCdW := dCdA * dAdZ * dZdW
+			// Total derivative, via chain rule ∂L/∂w,
+			// deriv loss w.r.t. weight
+			dLdW := dLdA * dAdZ * dZdW
 
 			// Update the weight
-			update := l.nn.LearningRate * dCdW
+			update := l.nn.LearningRate * dLdW
 			l.weights[j][k] = wjk - update
 		}
 
-		// Update the bias along the gradient of the cost w.r.t. inputs.
-		// ∂C/∂z = ∂C/∂a * ∂a/∂z
+		// Update the bias along the gradient of the loss w.r.t. inputs.
+		// ∂L/∂z = ∂L/∂a * ∂a/∂z
 		l.biases[j] = l.biases[j] -
-			l.nn.LearningRate*dCdA*dAdZ
+			l.nn.LearningRate*dLdA*dAdZ
 	}
 }

@@ -290,6 +290,7 @@ func TestMLPMultiLayerMNIST(t *testing.T) {
 		},
 	}
 
+	// NOTE: Dataset size is limited to speed up tests.
 	loss, err := m.Train(epochs, dataset.TrainInputs[:10000], dataset.TrainLabels[:10000])
 	require.NoError(t, err, "training error")
 	assert.Less(t, loss, float32(0.1), "loss should be low")
