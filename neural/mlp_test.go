@@ -1,6 +1,7 @@
 package neural
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/kujenga/goml/lin"
@@ -265,6 +266,49 @@ func TestMLPMultiLayerBasic(t *testing.T) {
 	// While not scientifically useful, we validate that the network can
 	// predict it's own training data.
 	predictionTestBool(t, &m, trainInputs, trainLabels)
+}
+
+// TestMLPInvalid tests that invalid MLPs are properly erroring without
+// panicing in any unexpected manners.
+func TestMLPInvalid(t *testing.T) {
+
+	for idx, tc := range []struct {
+		mlp           *MLP
+		in            lin.Frame
+		out           lin.Frame
+		errorContains string
+	}{
+		{
+			// Must have layers
+			mlp:           &MLP{},
+			in:            boolInputs,
+			out:           andLabels,
+			errorContains: "must have at least one layer",
+		},
+		{
+			// Must have matching in/out
+			mlp: &MLP{
+				LearningRate: 0.05,
+				Layers: []*Layer{
+					// Input
+					{Name: "input", Width: 3},
+					// Output
+					{Name: "output", Width: 1},
+				},
+			},
+			in:            boolInputs,
+			out:           lin.Frame{},
+			errorContains: "mismatched with outputs",
+		},
+	} {
+		t.Run(fmt.Sprintf("case%d", idx), func(t *testing.T) {
+			_, err := tc.mlp.Train(5, tc.in, tc.out)
+			require.Error(t, err)
+			if tc.errorContains != "" {
+				assert.Contains(t, err.Error(), tc.errorContains)
+			}
+		})
+	}
 }
 
 func TestMLPMultiLayerMNIST(t *testing.T) {
