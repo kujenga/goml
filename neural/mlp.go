@@ -49,10 +49,10 @@ type Step struct {
 	Loss float32
 }
 
-// Initialize causes the network layers to initialize the needed memory
-// allocations and references for proper operation. It is called automatically
-// during training, provided separately only to facilitate more precise use of
-// the network from a performance perspective.
+// Initialize sets up network layers with the needed memory allocations and
+// references for proper operation. It is called automatically during training,
+// provided separately only to facilitate more precise use of the network from
+// a performance analysis perspective.
 func (n *MLP) Initialize() {
 	var prev *Layer
 	for i, layer := range n.Layers {
@@ -60,8 +60,8 @@ func (n *MLP) Initialize() {
 		if i < len(n.Layers)-1 {
 			next = n.Layers[i+1]
 		}
-		// This function does nothing if it has already been called for
-		// the layer.
+		// Idempotent initialization of the layer, passing in the
+		// previous and next layers for reference in training.
 		layer.initialize(n, prev, next)
 		prev = layer
 	}
@@ -197,19 +197,20 @@ type Layer struct {
 	lastL lin.Frame
 }
 
-// Initialize random weights for the layer.
+// initialize sets up the needed data structures and random initial values for
+// the layer. If key values are unspecified, defaults are configured.
 func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 	if l.initialized || prev == nil {
-		// If already initialized or the input layer
+		// If already initialized or the input layer, nothing to do.
 		return
 	}
 
-	// Pointers to other components in the network
+	// Pointers to other components in the network.
 	l.nn = nn
 	l.prev = prev
 	l.next = next
 
-	// Hyperparameters for how the layer behaves.
+	// Provide defaults for unspecified hyperparameters.
 	if l.ActivationFunction == nil {
 		l.ActivationFunction = lin.Sigmoid
 	}
@@ -217,14 +218,18 @@ func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 		l.ActivationFunctionDeriv = lin.SigmoidDerivative
 	}
 
-	// Memory structures for use in the network training and predictions.
+	// Initialize data structures for use in the network training and
+	// predictions, providing them with random initial values.
 	l.weights = make(lin.Frame, l.Width)
 	for i := range l.weights {
 		l.weights[i] = make(lin.Vector, l.prev.Width)
 		for j := range l.weights[i] {
-			// We scale this based on the "connectedness" of the
-			// node to avoid saturating the gradients in the network.
-			weight := rand.NormFloat64() * math.Pow(float64(l.prev.Width), -0.5)
+			// We scale these based on the "connectedness" of the
+			// node to avoid saturating the gradients in the
+			// network, where really high values do not play nicely
+			// with activation functions like sigmoid.
+			weight := rand.NormFloat64() *
+				math.Pow(float64(l.prev.Width), -0.5)
 			l.weights[i][j] = float32(weight)
 		}
 	}
@@ -232,7 +237,7 @@ func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 	for i := range l.biases {
 		l.biases[i] = rand.Float32()
 	}
-	// Setup as empty for use in backprop
+	// Set up empty error and loss structures for use in backprop.
 	l.lastE = make(lin.Vector, l.Width)
 	l.lastL = make(lin.Frame, l.Width)
 	for i := range l.lastL {
@@ -242,83 +247,108 @@ func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 	l.initialized = true
 }
 
-// ForwardProp takes in the values, where "inputs" is the output of the
-// previous layer, and performs forward propagation.
+// ForwardProp takes in a set of inputs from the previous layer and performs
+// forward propagation for the current layer, returning the resulting
+// activations. As a special case, if this Layer has no previous layer and is
+// thus the input layer for the network, the values are passed through
+// unmodified. Internal state from the calculation is persisted for later use
+// in back propagation.
 func (l *Layer) ForwardProp(input lin.Vector) lin.Vector {
-	// If this is the input layer, there is no feed forward step.
+	// If this is the input layer, pass through values unmodified.
 	if l.prev == nil {
 		l.lastActivations = input
 		return input
 	}
 
+	// Create vectors with state for each node in this layer.
 	Z := make(lin.Vector, l.Width)
 	activations := make(lin.Vector, l.Width)
-	// Feed forward each input through this layer.
+	// For each node in the layer, perform feed-forward calculation.
 	for i := range activations {
-		// Find the dot product and apply bias
-		Z[i] = lin.DotProduct(input, l.weights[i]) + l.biases[i]
-		// Sigmoid activation function
+		// Vector of weights for each edge to this node, incoming from
+		// the previous layer.
+		nodeWeights := l.weights[i]
+		// Scalar bias value for the current node index.
+		nodeBias := l.biases[i]
+		// Combine input with incoming edge weights, then apply bias.
+		Z[i] = lin.DotProduct(input, nodeWeights) + nodeBias
+		// Apply activation function for non-linearity.
 		activations[i] = l.ActivationFunction(Z[i])
 	}
+	// Capture state for use in back-propagation.
 	l.lastZ = Z
 	l.lastActivations = activations
 	return activations
 }
 
-// BackProp performs back propagation for the given set of labels, updating the
-// weights for this layer according to the computed error.
+// BackProp performs the training process of back propagation on the layer for
+// the given set of labels. Weights and biases are updated for this layer
+// according to the computed error. Internal state on the backpropagation
+// process is captured for further backpropagation in earlier layers of the
+// network as well.
 func (l *Layer) BackProp(label lin.Vector) {
-	// Iterate over weights for each node "j" in the
-	// current layer.
-	for j, wj := range l.weights {
-		// ∂L/∂a, deriv Loss w.r.t. activation: 2 ( a1(L) - y1 )
-		aj := l.lastActivations[j]
-		if l.next == nil { // Output layer
-			// Just needs to consider this activation value.
-			l.lastE[j] = aj - label[j]
-		} else {
-			// ∑0-j ( 2(aj-yj) (g'(zj)) (wj2) )
+	// ∂L/∂a, deriv Loss w.r.t. activation:
+	// 2 ( a1(L) - y1 )
+	// First calculate the "lastE" vector of last observed error values.
+	if l.next == nil { // Output layer
+		// For the output layer, this is just the difference between
+		// output value and label.
+		l.lastE = l.lastActivations.Subtract(label)
+	} else {
+		// Formula for propagated error in hidden layers:
+		// ∑0-j ( 2(aj-yj) (g'(zj)) (wj2) )
 
-			// Iterate over each node in the next layer and sum up
-			// the losses attributed to this node.
-			l.lastE[j] = 0
+		// Compute an error for this hidden node by summing up losses
+		// attributed to it from the next layer down in the network.
+		l.lastE = make(lin.Vector, len(l.lastE))
+		for j := range l.weights {
 			for jn := range l.next.lastL {
 				// Add the loss from node jn in the next layer
 				// that came from node j in this layer.
 				l.lastE[j] += l.next.lastL[jn][j]
 			}
 		}
-		// deriv of the squared error w.r.t. activation
-		dLdA := 2 * l.lastE[j]
+	}
+	// Derivative of the squared error w.r.t. activation is applied to the
+	// vector of computed errors for each node in this layer.
+	dLdA := l.lastE.Scalar(2)
 
-		// ∂a/∂z, deriv activation w.r.t. input
-		// g'(L)(z) ( z1(L) )
-		dAdZ := l.ActivationFunctionDeriv(l.lastZ[j])
+	// ∂a/∂z, derivative of activation w.r.t. input:
+	// g'(L)(z) ( z1(L) )
+	// We apply the derivative of the activation function, specified at
+	// network creation time, to the vector of "Z" values for each node
+	// captured during forward propagation.
+	dAdZ := l.lastZ.Apply(l.ActivationFunctionDeriv)
 
-		// Capture the loss for this edge for use in the next layer up
-		// of backprop.
-		for k, wjk := range wj {
-			l.lastL[j][k] = wjk * l.lastE[j]
-		}
+	// Capture the loss for this edge for use in the next layer up
+	// of backprop. This references and feeds into the lastE
+	// calculation above, used in the first derivative term.
+	for j := range l.weights {
+		l.lastL[j] = l.weights[j].Scalar(l.lastE[j])
+	}
 
-		// Iterate over each weight for node "k" in the previous layer.
-		for k, wjk := range wj {
-			// ∂z/∂w, deriv input w.r.t. weight a2(L-1)
-			ak := l.prev.lastActivations[k]
-			dZdW := ak
+	// Iterate over each weight for node "j" in this layer and "k" in the
+	// previous layer and update it according to the computed derivatives.
+	for j := range l.weights {
+		for k := range l.weights[j] {
+			// ∂z/∂w, derivative of input w.r.t. weight:
+			// a2(L-1)
+			// This comes out to the same thing as the formula for
+			// the last used activations themselves.
+			dZdW := l.prev.lastActivations[k]
 
 			// Total derivative, via chain rule ∂L/∂w,
-			// deriv loss w.r.t. weight
-			dLdW := dLdA * dAdZ * dZdW
+			// derivative of loss w.r.t. weight
+			dLdW := dLdA[j] * dAdZ[j] * dZdW
 
-			// Update the weight
-			update := l.nn.LearningRate * dLdW
-			l.weights[j][k] = wjk - update
+			// Update the weight according to the learning rate.
+			l.weights[j][k] -= dLdW * l.nn.LearningRate
 		}
-
-		// Update the bias along the gradient of the loss w.r.t. inputs.
-		// ∂L/∂z = ∂L/∂a * ∂a/∂z
-		l.biases[j] = l.biases[j] -
-			l.nn.LearningRate*dLdA*dAdZ
 	}
+
+	// Calculate bias updates along the gradient of the loss w.r.t. inputs.
+	// ∂L/∂z = ∂L/∂a * ∂a/∂z
+	biasUpdate := dLdA.ElementwiseProduct(dAdZ)
+	// Update the bias according to the learning rate.
+	l.biases = l.biases.Subtract(biasUpdate.Scalar(l.nn.LearningRate))
 }
