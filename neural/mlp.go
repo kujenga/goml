@@ -49,10 +49,10 @@ type Step struct {
 	Loss float32
 }
 
-// Initialize causes the network layers to initialize the needed memory
-// allocations and references for proper operation. It is called automatically
-// during training, provided separately only to facilitate more precise use of
-// the network from a performance perspective.
+// Initialize sets up network layers with the needed memory allocations and
+// references for proper operation. It is called automatically during training,
+// provided separately only to facilitate more precise use of the network from
+// a performance analysis perspective.
 func (n *MLP) Initialize() {
 	var prev *Layer
 	for i, layer := range n.Layers {
@@ -60,8 +60,8 @@ func (n *MLP) Initialize() {
 		if i < len(n.Layers)-1 {
 			next = n.Layers[i+1]
 		}
-		// This function does nothing if it has already been called for
-		// the layer.
+		// Idempotent initialization of the layer, passing in the
+		// previous and next layers for reference in training.
 		layer.initialize(n, prev, next)
 		prev = layer
 	}
@@ -197,19 +197,20 @@ type Layer struct {
 	lastL lin.Frame
 }
 
-// Initialize random weights for the layer.
+// initialize sets up the needed data structures and random initial values for
+// the layer. If key values are unspecified, defaults are configured.
 func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 	if l.initialized || prev == nil {
-		// If already initialized or the input layer
+		// If already initialized or the input layer, nothing to do.
 		return
 	}
 
-	// Pointers to other components in the network
+	// Pointers to other components in the network.
 	l.nn = nn
 	l.prev = prev
 	l.next = next
 
-	// Hyperparameters for how the layer behaves.
+	// Provide defaults for unspecified hyperparameters.
 	if l.ActivationFunction == nil {
 		l.ActivationFunction = lin.Sigmoid
 	}
@@ -217,14 +218,18 @@ func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 		l.ActivationFunctionDeriv = lin.SigmoidDerivative
 	}
 
-	// Memory structures for use in the network training and predictions.
+	// Initialize data structures for use in the network training and
+	// predictions, providing them with random initial values.
 	l.weights = make(lin.Frame, l.Width)
 	for i := range l.weights {
 		l.weights[i] = make(lin.Vector, l.prev.Width)
 		for j := range l.weights[i] {
-			// We scale this based on the "connectedness" of the
-			// node to avoid saturating the gradients in the network.
-			weight := rand.NormFloat64() * math.Pow(float64(l.prev.Width), -0.5)
+			// We scale these based on the "connectedness" of the
+			// node to avoid saturating the gradients in the
+			// network, where really high values do not play nicely
+			// with activation functions like sigmoid.
+			weight := rand.NormFloat64() *
+				math.Pow(float64(l.prev.Width), -0.5)
 			l.weights[i][j] = float32(weight)
 		}
 	}
@@ -232,7 +237,7 @@ func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 	for i := range l.biases {
 		l.biases[i] = rand.Float32()
 	}
-	// Setup as empty for use in backprop
+	// Set up empty error and loss structures for use in backprop.
 	l.lastE = make(lin.Vector, l.Width)
 	l.lastL = make(lin.Frame, l.Width)
 	for i := range l.lastL {
