@@ -281,22 +281,28 @@ func (l *Layer) ForwardProp(input lin.Vector) lin.Vector {
 	return activations
 }
 
-// BackProp performs back propagation for the given set of labels, updating the
-// weights for this layer according to the computed error.
+// BackProp performs the training process of back propagation on the layer for
+// the given set of labels. Weights and biases are updated for this layer
+// according to the computed error. Internal state on the backpropagation
+// process is captured for further backpropagation in earlier layers of the
+// network as well.
 func (l *Layer) BackProp(label lin.Vector) {
-	// Iterate over weights for each node "j" in the
-	// current layer.
+	// Iterate over weights for each node "j" in the current layer, where
+	// "wj" is a vector of the weights for edges incoming to that node from
+	// the previous layer.
 	for j, wj := range l.weights {
-		// ∂L/∂a, deriv Loss w.r.t. activation: 2 ( a1(L) - y1 )
-		aj := l.lastActivations[j]
+		// ∂L/∂a, deriv Loss w.r.t. activation:
+		// 2 ( a1(L) - y1 )
+		// First calculate the last observed error value for node j.
 		if l.next == nil { // Output layer
-			// Just needs to consider this activation value.
-			l.lastE[j] = aj - label[j]
+			// Difference between label and output value.
+			l.lastE[j] = l.lastActivations[j] - label[j]
 		} else {
+			// Formula for propagated error in hidden layers:
 			// ∑0-j ( 2(aj-yj) (g'(zj)) (wj2) )
 
-			// Iterate over each node in the next layer and sum up
-			// the losses attributed to this node.
+			// Iterate over each node in the next layer down and
+			// sum up the losses attributed to this node.
 			l.lastE[j] = 0
 			for jn := range l.next.lastL {
 				// Add the loss from node jn in the next layer
@@ -304,37 +310,39 @@ func (l *Layer) BackProp(label lin.Vector) {
 				l.lastE[j] += l.next.lastL[jn][j]
 			}
 		}
-		// deriv of the squared error w.r.t. activation
+		// Derivative of the squared error w.r.t. activation.
 		dLdA := 2 * l.lastE[j]
 
-		// ∂a/∂z, deriv activation w.r.t. input
+		// ∂a/∂z, derivative of activation w.r.t. input:
 		// g'(L)(z) ( z1(L) )
 		dAdZ := l.ActivationFunctionDeriv(l.lastZ[j])
 
 		// Capture the loss for this edge for use in the next layer up
-		// of backprop.
+		// of backprop. This references and feeds into the lastE
+		// calculation above, used in the first derivative term.
 		for k, wjk := range wj {
 			l.lastL[j][k] = wjk * l.lastE[j]
 		}
 
-		// Iterate over each weight for node "k" in the previous layer.
+		// Iterate over each weight for node "k" in the previous layer
+		// and update it according to the computed derivatives.
 		for k, wjk := range wj {
-			// ∂z/∂w, deriv input w.r.t. weight a2(L-1)
+			// ∂z/∂w, derivative of input w.r.t. weight:
+			// a2(L-1)
 			ak := l.prev.lastActivations[k]
 			dZdW := ak
 
 			// Total derivative, via chain rule ∂L/∂w,
-			// deriv loss w.r.t. weight
+			// derivative of loss w.r.t. weight
 			dLdW := dLdA * dAdZ * dZdW
 
-			// Update the weight
-			update := l.nn.LearningRate * dLdW
-			l.weights[j][k] = wjk - update
+			// Update the weight according to the learning rate.
+			l.weights[j][k] = wjk - (l.nn.LearningRate * dLdW)
 		}
 
 		// Update the bias along the gradient of the loss w.r.t. inputs.
 		// ∂L/∂z = ∂L/∂a * ∂a/∂z
 		l.biases[j] = l.biases[j] -
-			l.nn.LearningRate*dLdA*dAdZ
+			(l.nn.LearningRate * dLdA * dAdZ)
 	}
 }
