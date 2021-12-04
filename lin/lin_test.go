@@ -1,9 +1,11 @@
 package lin
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFrameDeepCopy(t *testing.T) {
@@ -73,48 +75,99 @@ func TestFramePairwise(t *testing.T) {
 	}, c)
 }
 
-func TestDotProduct(t *testing.T) {
+func TestVectorPairOperations(t *testing.T) {
 	for i, tc := range []struct {
-		a      []float32
-		b      []float32
-		answer float32
-		panics bool
+		// Inputs
+		a Vector
+		b Vector
+		// Expectations
+		dotProduct  float32
+		subtract    Vector
+		elemProduct Vector
+		panics      bool
 	}{
 		{
-			a:      []float32{0, 0},
-			b:      []float32{0, 0},
-			answer: 0,
+			a:           Vector{0, 0},
+			b:           Vector{0, 0},
+			dotProduct:  0,
+			subtract:    Vector{0, 0},
+			elemProduct: Vector{0, 0},
 		},
 		{
-			a:      []float32{0, 1},
-			b:      []float32{1, 0},
-			answer: 0,
+			a:           Vector{0, 1},
+			b:           Vector{1, 0},
+			dotProduct:  0,
+			subtract:    Vector{-1, 1},
+			elemProduct: Vector{0, 0},
 		},
 		{
-			a:      []float32{1, 1},
-			b:      []float32{1, 1},
-			answer: 2,
+			a:           Vector{1, 1},
+			b:           Vector{1, 1},
+			dotProduct:  2,
+			subtract:    Vector{0, 0},
+			elemProduct: Vector{1, 1},
 		},
 		{
-			a:      []float32{1.5, 1},
-			b:      []float32{1, 1.1},
-			answer: 2.6,
+			a:           Vector{1.5, 1},
+			b:           Vector{1, 2},
+			dotProduct:  3.5,
+			subtract:    Vector{0.5, -1},
+			elemProduct: Vector{1.5, 2},
 		},
 		{
-			a:      []float32{1},
-			b:      []float32{1, 1},
+			a:      Vector{1},
+			b:      Vector{1, 1},
 			panics: true,
 		},
 	} {
-		if tc.panics {
-			assert.Panics(t, func() {
-				_ = DotProduct(tc.a, tc.b)
-			})
-			continue
-		}
+		t.Run(fmt.Sprintf("case%d", i), func(t *testing.T) {
+			if tc.panics {
+				require.Panics(t, func() {
+					_ = DotProduct(tc.a, tc.b)
+				})
+				return
+			}
 
-		got := DotProduct(tc.a, tc.b)
-		assert.Equal(t, tc.answer, got, "case: %d, i", i)
+			dp := DotProduct(tc.a, tc.b)
+			assert.Equal(t, tc.dotProduct, dp, "dot product")
+
+			sb := tc.a.Subtract(tc.b)
+			assert.Equal(t, tc.subtract, sb, "subtract")
+
+			ep := tc.a.ElementwiseProduct(tc.b)
+			assert.Equal(t, tc.elemProduct, ep, "elementwise product")
+		})
+	}
+}
+
+func TestVectorScalarOperations(t *testing.T) {
+	for i, tc := range []struct {
+		// Inputs
+		a Vector
+		s float32
+		// Expectations
+		scalar Vector
+	}{
+		{
+			a:      Vector{0, 0},
+			s:      3.5,
+			scalar: Vector{0, 0},
+		},
+		{
+			a:      Vector{2, 5},
+			s:      0,
+			scalar: Vector{0, 0},
+		},
+		{
+			a:      Vector{2, 4},
+			s:      -2.5,
+			scalar: Vector{-5, -10},
+		},
+	} {
+		t.Run(fmt.Sprintf("case%d", i), func(t *testing.T) {
+			ep := tc.a.Scalar(tc.s)
+			assert.Equal(t, tc.scalar, ep, "scalar")
+		})
 	}
 }
 

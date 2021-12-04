@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-// Frame is a 2D metrix for use in linear algebra.
+// Frame is a 2D matrix for use in linear algebra.
 type Frame []Vector
 
 // DeepCopy creates a copy of the Frame with no shared memory from the
@@ -63,6 +63,53 @@ func (f Frame) Pairwise(o Frame, fn func(float32, float32) float32) Frame {
 
 // Vector is a 1D array of values for use in linear algebra computations.
 type Vector []float32
+
+// DeepCopy creates a copy of the Vector with no shared memory from the
+// original.
+func (v Vector) DeepCopy() Vector {
+	out := make(Vector, len(v))
+	copy(out, v)
+	return out
+}
+
+// Apply returns a copy of the Vector with the given function applied to each
+// element.
+func (v Vector) Apply(fn func(float32) float32) Vector {
+	out := v.DeepCopy()
+	for i := range out {
+		out[i] = fn(out[i])
+	}
+	return out
+}
+
+// Scalar creates a vector that is the result of multiplying each
+// element of this vecor with the passed in scalar value.
+func (v Vector) Scalar(s float32) Vector {
+	return v.Apply(func(e float32) float32 {
+		return e * s
+	})
+}
+
+// Subtract created a vector that is the result of subtracting the passed in
+// vector from this vector.
+func (v Vector) Subtract(o Vector) Vector {
+	out := v.DeepCopy()
+	for i := range v {
+		out[i] = v[i] - o[i]
+	}
+	return out
+}
+
+// ElementwiseProduct creates a vector that is the result of the
+// multiplication of the corresponding elements of this vector with the passed
+// in vector. Also known as the Hadamard product.
+func (v Vector) ElementwiseProduct(o Vector) Vector {
+	out := v.DeepCopy()
+	for i := range v {
+		out[i] = v[i] * o[i]
+	}
+	return out
+}
 
 // DotProduct returns the value of the dot product for two vectors.
 func DotProduct(a, b Vector) float32 {

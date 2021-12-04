@@ -287,62 +287,68 @@ func (l *Layer) ForwardProp(input lin.Vector) lin.Vector {
 // process is captured for further backpropagation in earlier layers of the
 // network as well.
 func (l *Layer) BackProp(label lin.Vector) {
-	// Iterate over weights for each node "j" in the current layer, where
-	// "wj" is a vector of the weights for edges incoming to that node from
-	// the previous layer.
-	for j, wj := range l.weights {
-		// ∂L/∂a, deriv Loss w.r.t. activation:
-		// 2 ( a1(L) - y1 )
-		// First calculate the last observed error value for node j.
-		if l.next == nil { // Output layer
-			// Difference between label and output value.
-			l.lastE[j] = l.lastActivations[j] - label[j]
-		} else {
-			// Formula for propagated error in hidden layers:
-			// ∑0-j ( 2(aj-yj) (g'(zj)) (wj2) )
+	// ∂L/∂a, deriv Loss w.r.t. activation:
+	// 2 ( a1(L) - y1 )
+	// First calculate the "lastE" vector of last observed error values.
+	if l.next == nil { // Output layer
+		// For the output layer, this is just the difference between
+		// output value and label.
+		l.lastE = l.lastActivations.Subtract(label)
+	} else {
+		// Formula for propagated error in hidden layers:
+		// ∑0-j ( 2(aj-yj) (g'(zj)) (wj2) )
 
-			// Iterate over each node in the next layer down and
-			// sum up the losses attributed to this node.
-			l.lastE[j] = 0
+		// Compute an error for this hidden node by summing up losses
+		// attributed to it from the next layer down in the network.
+		l.lastE = make(lin.Vector, len(l.lastE))
+		for j := range l.weights {
 			for jn := range l.next.lastL {
 				// Add the loss from node jn in the next layer
 				// that came from node j in this layer.
 				l.lastE[j] += l.next.lastL[jn][j]
 			}
 		}
-		// Derivative of the squared error w.r.t. activation.
-		dLdA := 2 * l.lastE[j]
+	}
+	// Derivative of the squared error w.r.t. activation is applied to the
+	// vector of computed errors for each node in this layer.
+	dLdA := l.lastE.Scalar(2)
 
-		// ∂a/∂z, derivative of activation w.r.t. input:
-		// g'(L)(z) ( z1(L) )
-		dAdZ := l.ActivationFunctionDeriv(l.lastZ[j])
+	// ∂a/∂z, derivative of activation w.r.t. input:
+	// g'(L)(z) ( z1(L) )
+	// We apply the derivative of the activation function, specified at
+	// network creation time, to the vector of "Z" values for each node
+	// captured during forward propagation.
+	dAdZ := l.lastZ.Apply(l.ActivationFunctionDeriv)
 
-		// Capture the loss for this edge for use in the next layer up
-		// of backprop. This references and feeds into the lastE
-		// calculation above, used in the first derivative term.
-		for k, wjk := range wj {
-			l.lastL[j][k] = wjk * l.lastE[j]
-		}
+	// Capture the loss for this edge for use in the next layer up
+	// of backprop. This references and feeds into the lastE
+	// calculation above, used in the first derivative term.
+	for j := range l.weights {
+		l.lastL[j] = l.weights[j].Scalar(l.lastE[j])
+	}
 
-		// Iterate over each weight for node "k" in the previous layer
-		// and update it according to the computed derivatives.
-		for k, wjk := range wj {
+	// Iterate over each weight for node "j" in this layer and "k" in the
+	// previous layer and update it according to the computed derivatives.
+	for j := range l.weights {
+		for k := range l.weights[j] {
 			// ∂z/∂w, derivative of input w.r.t. weight:
 			// a2(L-1)
-			ak := l.prev.lastActivations[k]
-			dZdW := ak
+			// This comes out to the same thing as the formula for
+			// the last used activations themselves.
+			dZdW := l.prev.lastActivations[k]
 
 			// Total derivative, via chain rule ∂L/∂w,
 			// derivative of loss w.r.t. weight
-			dLdW := dLdA * dAdZ * dZdW
+			dLdW := dLdA[j] * dAdZ[j] * dZdW
 
 			// Update the weight according to the learning rate.
-			l.weights[j][k] = wjk - (l.nn.LearningRate * dLdW)
+			l.weights[j][k] -= dLdW * l.nn.LearningRate
 		}
-
-		// Update the bias along the gradient of the loss w.r.t. inputs.
-		// ∂L/∂z = ∂L/∂a * ∂a/∂z
-		l.biases[j] = l.biases[j] -
-			(l.nn.LearningRate * dLdA * dAdZ)
 	}
+
+	// Calculate bias updates along the gradient of the loss w.r.t. inputs.
+	// ∂L/∂z = ∂L/∂a * ∂a/∂z
+	biasUpdate := dLdA.ElementwiseProduct(dAdZ)
+	// Update the bias according to the learning rate.
+	l.biases = l.biases.Subtract(biasUpdate.Scalar(l.nn.LearningRate))
 }
