@@ -247,24 +247,35 @@ func (l *Layer) initialize(nn *MLP, prev *Layer, next *Layer) {
 	l.initialized = true
 }
 
-// ForwardProp takes in the values, where "inputs" is the output of the
-// previous layer, and performs forward propagation.
+// ForwardProp takes in a set of inputs from the previous layer and performs
+// forward propagation for the current layer, returning the resulting
+// activations. As a special case, if this Layer has no previous layer and is
+// thus the input layer for the network, the values are passed through
+// unmodified. Internal state from the calculation is persisted for later use
+// in back propagation.
 func (l *Layer) ForwardProp(input lin.Vector) lin.Vector {
-	// If this is the input layer, there is no feed forward step.
+	// If this is the input layer, pass through values unmodified.
 	if l.prev == nil {
 		l.lastActivations = input
 		return input
 	}
 
+	// Create vectors with state for each node in this layer.
 	Z := make(lin.Vector, l.Width)
 	activations := make(lin.Vector, l.Width)
-	// Feed forward each input through this layer.
+	// For each node in the layer, perform feed-forward calculation.
 	for i := range activations {
-		// Find the dot product and apply bias
-		Z[i] = lin.DotProduct(input, l.weights[i]) + l.biases[i]
-		// Sigmoid activation function
+		// Vector of weights for each edge to this node, incoming from
+		// the previous layer.
+		nodeWeights := l.weights[i]
+		// Scalar bias value for the current node index.
+		nodeBias := l.biases[i]
+		// Combine input with incoming edge weights, then apply bias.
+		Z[i] = lin.DotProduct(input, nodeWeights) + nodeBias
+		// Apply activation function for non-linearity.
 		activations[i] = l.ActivationFunction(Z[i])
 	}
+	// Capture state for use in back-propagation.
 	l.lastZ = Z
 	l.lastActivations = activations
 	return activations
