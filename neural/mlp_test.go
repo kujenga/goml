@@ -347,6 +347,46 @@ func TestMLPMultiLayerMNIST(t *testing.T) {
 	)
 }
 
+func TestMLPMultiLayerFashionMNIST(t *testing.T) {
+	dataset, err := mnist.Read("../testdata/mnist-fashion")
+	require.NoError(t, err)
+
+	// Observed to not get much better with additional epochs with the
+	// limited training data set we are using.
+	const epochs = 3
+
+	m := MLP{
+		LearningRate: 0.1,
+		Layers: []*Layer{
+			// Input
+			{Name: "input", Width: 28 * 28},
+			// Hidden
+			{Name: "hidden1", Width: 100},
+			// Output
+			{Name: "output", Width: 10},
+		},
+		Introspect: func(s Step) {
+			t.Logf("%+v", s)
+		},
+	}
+
+	// NOTE: Dataset size is limited to speed up tests.
+	loss, err := m.Train(epochs, dataset.TrainInputs[:10000], dataset.TrainLabels[:10000])
+	require.NoError(t, err, "training error")
+	assert.Less(t, loss, float32(0.1), "loss should be low")
+
+	// Validate against the fashion test set
+	predictionTestOneHot(t, &m,
+		dataset.TestInputs,
+		dataset.TestLabels,
+		// Hovers around 0.73, maybe up to ~0.76 with more training and
+		// the full dataset. See scores here for reference, this about
+		// on par with other perceptrons:
+		// fashion-mnist.s3-website.eu-central-1.amazonaws.com/
+		0.7,
+	)
+}
+
 func BenchmarkMLPMultiLayerBasic(b *testing.B) {
 	m := MLP{
 		LearningRate: 0.1,
