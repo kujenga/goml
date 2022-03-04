@@ -21,6 +21,13 @@ jobs:
           paths:
             - "/go/pkg/mod"
       - run:
+          # https://docs.codeclimate.com/docs/circle-ci-test-coverage-example
+          name: Setup Code Climate test-reporter
+          command: |
+            # download test reporter as a static binary
+            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+            chmod +x ./cc-test-reporter
+      - run:
           name: Setup test files
           command: make
       - run:
@@ -28,6 +35,10 @@ jobs:
           command: |
             set -x
             mkdir -p $TEST_ARTIFACTS
+      - run:
+          name: Code Climate Before Build
+          command: |
+            ./cc-test-reporter before-build
       - run:
           name: Run tests
           command: |
@@ -40,6 +51,17 @@ jobs:
             go tool cover \
               -html=$COVERAGE_FILE \
               -o=$TEST_ARTIFACTS/coverage.html
+      - run:
+          name: Code Climate After Build
+          command: |
+            set -x
+            ./cc-test-reporter format-coverage \
+              --prefix="$(go list -m)" \
+              --input-type=gocov \
+              --output=$TEST_ARTIFACTS/codeclimate.json \
+              $COVERAGE_FILE
+            ./cc-test-reporter upload-coverage \
+              --input=$TEST_ARTIFACTS/codeclimate.json
       - store_artifacts:
           path: /tmp/test-artifacts
       - run:
