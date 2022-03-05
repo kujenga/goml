@@ -3,6 +3,9 @@ version: 2.1
 jobs:
   build:
     working_directory: ~/repo
+    environment:
+      TEST_ARTIFACTS: /tmp/test-artifacts
+      COVERAGE_FILE: /tmp/test-artifacts/coverage.txt
     docker:
       - image: cimg/go:1.16
     steps:
@@ -18,31 +21,52 @@ jobs:
           paths:
             - "/go/pkg/mod"
       - run:
+          # https://docs.codeclimate.com/docs/circle-ci-test-coverage-example
+          name: Setup Code Climate test-reporter
+          command: |
+            # download test reporter as a static binary
+            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+            chmod +x ./cc-test-reporter
+      - run:
           name: Setup test files
           command: make
       - run:
           name: Make test and artifact directories
           command: |
-            mkdir -p /tmp/test-reports
-            mkdir -p /tmp/test-artifacts
+            set -x
+            mkdir -p $TEST_ARTIFACTS
+      - run:
+          name: Code Climate Before Build
+          command: |
+            ./cc-test-reporter before-build
       - run:
           name: Run tests
           command: |
-            gotestsum --junitfile /tmp/test-reports/unit-tests.xml -- \
-              -coverprofile=/tmp/test-artifacts/coverage.txt ./...
+            gotestsum --junitfile $TEST_ARTIFACTS/unit-tests.xml -- \
+              -coverprofile=$COVERAGE_FILE ./...
       - run:
           name: Generate coverage report
           command: |
+            set -x
             go tool cover \
-              -html=/tmp/test-artifacts/coverage.txt \
-              -o=/tmp/test-artifacts/coverage.html
-      - store_test_results:
-          path: /tmp/test-reports
+              -html=$COVERAGE_FILE \
+              -o=$TEST_ARTIFACTS/coverage.html
+      - run:
+          name: Code Climate After Build
+          command: |
+            set -x
+            ./cc-test-reporter format-coverage \
+              --prefix="$(go list -m)" \
+              --input-type=gocov \
+              --output=$TEST_ARTIFACTS/codeclimate.json \
+              $COVERAGE_FILE
+            ./cc-test-reporter upload-coverage \
+              --input=$TEST_ARTIFACTS/codeclimate.json
       - store_artifacts:
           path: /tmp/test-artifacts
       - run:
           # ref: https://github.com/codecov/example-go/blob/master/.circleci/config.yml
           name: Upload coverage to Codecov
           command: |
-            bash <(curl -s https://codecov.io/bash) \
-              -f /tmp/test-artifacts/coverage.txt
+            set -x
+            bash <(curl -s https://codecov.io/bash) -f $COVERAGE_FILE

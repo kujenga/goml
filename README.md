@@ -3,6 +3,8 @@
 [![GoDoc reference example](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/kujenga/goml)
 [![CircleCI](https://circleci.com/gh/kujenga/goml/tree/main.svg?style=svg)](https://circleci.com/gh/kujenga/goml/tree/main)
 [![codecov](https://codecov.io/gh/kujenga/goml/branch/main/graph/badge.svg?token=JD4534GVK7)](https://codecov.io/gh/kujenga/goml)
+[![Maintainability](https://api.codeclimate.com/v1/badges/6a76fa6d1c7fe238cba1/maintainability)](https://codeclimate.com/github/kujenga/goml/maintainability)
+[![Test Coverage](https://api.codeclimate.com/v1/badges/6a76fa6d1c7fe238cba1/test_coverage)](https://codeclimate.com/github/kujenga/goml/test_coverage)
 
 This repository contains various ML experiments written in Go. It endeavors to
 use just the standard library, with a handful of exceptions around testing, to
